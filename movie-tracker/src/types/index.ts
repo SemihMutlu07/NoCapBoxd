@@ -1,6 +1,7 @@
 export interface Movie {
   id: number;
   title: string;
+  tagline?: string;
   poster_path: string;
   backdrop_path?: string;
   overview: string;
@@ -68,4 +69,41 @@ export interface SearchResult {
   movies: Movie[];
   users: User[];
   total: number;
+}
+
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profile_path: string;
+}
+
+export interface CrewMember {
+  id: number;
+  name: string;
+  job: string;
+  profile_path: string | null;
+}
+
+export interface Credits {
+  cast: CastMember[];
+  crew: CrewMember[];
+}
+
+export interface ReleaseDate {
+  certification: string;
+  iso_639_1: string;
+  note: string;
+  release_date: string;
+  type: number;
+}
+
+export interface ReleaseDateResult {
+  iso_3166_1: string;
+  release_dates: ReleaseDate[];
+}
+
+export interface ReleaseDatesResponse {
+  id: number;
+  results: ReleaseDateResult[];
 } 

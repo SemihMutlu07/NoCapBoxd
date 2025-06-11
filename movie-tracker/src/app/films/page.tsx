@@ -1,262 +1,183 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import useSWR from 'swr';
-import Image from 'next/image';
 import Link from 'next/link';
-import { VscStarFull, VscFilter, VscSearch } from 'react-icons/vsc';
+import { VscFilter, VscSearch, VscWarning } from 'react-icons/vsc';
 import { fetcher } from '@/lib/tmdbClient';
 import { Movie } from '@/types';
+import MovieGridCard from '@/components/MovieGridCard';
+
+const MovieGrid: React.FC<{ movies: Movie[] }> = ({ movies }) => (
+  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+    {movies.map((movie) => (
+      <MovieGridCard key={movie.id} movie={movie} />
+    ))}
+  </div>
+);
+
+const LoadingSkeleton = () => (
+  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+    {Array.from({ length: 18 }).map((_, i) => (
+      <div key={i} className="space-y-3 animate-pulse">
+        <div className="aspect-[2/3] bg-gray-800 rounded-lg"></div>
+        <div className="h-4 bg-gray-800 rounded"></div>
+        <div className="h-3 bg-gray-800 rounded w-2/3"></div>
+      </div>
+    ))}
+  </div>
+);
+
+const ErrorDisplay = ({ error }: { error: any }) => (
+  <div className="text-center py-16 animate-scale-in">
+    <VscWarning className="text-[#e5383b] text-5xl mx-auto mb-4" />
+    <h2 className="text-2xl font-semibold text-white mb-2">Something went wrong</h2>
+    <p className="text-gray-400">{error?.info?.status_message || 'Failed to load movies. Please try again later.'}</p>
+  </div>
+);
+
+const NoResultsDisplay = ({ query }: { query?: string }) => (
+  <div className="text-center py-16 animate-scale-in">
+    <div className="text-6xl mb-4">🔍</div>
+    <h2 className="text-2xl font-semibold text-white mb-2">No movies found</h2>
+    <p className="text-gray-400">
+      {query ? `No results for "${query}". Try a different search.` : 'No movies match your current filters.'}
+    </p>
+  </div>
+);
 
 export default function FilmsPage() {
-  const [selectedCategory, setSelectedCategory] = useState('popular');
+  const [endpoint, setEndpoint] = useState('discover/movie');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGenre, setSelectedGenre] = useState('all');
-  const [selectedYear, setSelectedYear] = useState('all');
+  const [genre, setGenre] = useState('all');
+  const [year, setYear] = useState('all');
 
-  const { data: moviesData, isLoading, error } = useSWR(
-    `/movie/${selectedCategory}`,
-    fetcher
-  );
-
-  const { data: searchResults } = useSWR(
-    searchQuery.length > 2 ? `/search/movie?query=${encodeURIComponent(searchQuery)}` : null,
-    fetcher
-  );
-
+  const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+  
   const categories = [
-    { key: 'popular', label: 'Popular' },
-    { key: 'top_rated', label: 'Top Rated' },
-    { key: 'now_playing', label: 'Now Playing' },
-    { key: 'upcoming', label: 'Upcoming' },
+    { key: 'discover/movie', label: 'Popular' },
+    { key: 'movie/top_rated', label: 'Top Rated' },
+    { key: 'movie/now_playing', label: 'Now Playing' },
+    { key: 'movie/upcoming', label: 'Upcoming' },
   ];
 
   const genres = [
     { id: 'all', name: 'All Genres' },
-    { id: 28, name: 'Action' },
-    { id: 35, name: 'Comedy' },
-    { id: 18, name: 'Drama' },
-    { id: 27, name: 'Horror' },
-    { id: 878, name: 'Science Fiction' },
-    { id: 53, name: 'Thriller' },
-    { id: 16, name: 'Animation' },
-    { id: 99, name: 'Documentary' },
+    { id: 28, name: 'Action' }, { id: 12, name: 'Adventure' }, { id: 16, name: 'Animation' }, 
+    { id: 35, name: 'Comedy' }, { id: 80, name: 'Crime' }, { id: 99, name: 'Documentary' }, 
+    { id: 18, name: 'Drama' }, { id: 10751, name: 'Family' }, { id: 14, name: 'Fantasy' }, 
+    { id: 36, name: 'History' }, { id: 27, name: 'Horror' }, { id: 10402, name: 'Music' }, 
+    { id: 9648, name: 'Mystery' }, { id: 10749, name: 'Romance' }, { id: 878, name: 'Science Fiction' }, 
+    { id: 10770, name: 'TV Movie' }, { id: 53, name: 'Thriller' }, { id: 10752, name: 'War' }, 
+    { id: 37, name: 'Western' }
   ];
 
   const currentYear = new Date().getFullYear();
-  const years = ['all', ...Array.from({ length: 30 }, (_, i) => currentYear - i)];
+  const years = ['all', ...Array.from({ length: 50 }, (_, i) => currentYear - i)];
 
-  const displayMovies = searchQuery.length > 2 
-    ? searchResults?.results || []
-    : moviesData?.results || [];
+  const apiUrl = useMemo(() => {
+    if (!apiKey) return null;
 
-  const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => (
-    <Link href={`/film/${movie.id}`} className="group">
-      <div className="relative">
-        <Image
-          src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
-          alt={movie.title}
-          width={300}
-          height={450}
-          className="w-full rounded-lg shadow-lg group-hover:scale-105 transition-transform duration-300"
-        />
-        
-        {/* Overlay with movie info */}
-        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-70 transition-all duration-300 rounded-lg flex items-end">
-          <div className="p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 w-full">
-            <h3 className="font-semibold text-white mb-1 line-clamp-2">{movie.title}</h3>
-            <p className="text-gray-300 text-sm mb-2">
-              {new Date(movie.release_date).getFullYear()}
-            </p>
-            <div className="flex items-center space-x-1">
-              <VscStarFull className="text-yellow-500" size={14} />
-              <span className="text-white text-sm">{movie.vote_average.toFixed(1)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="mt-3">
-        <h3 className="font-medium text-white group-hover:text-[#e5383b] transition-colors line-clamp-2">
-          {movie.title}
-        </h3>
-        <p className="text-gray-400 text-sm">
-          {new Date(movie.release_date).getFullYear()}
-        </p>
-      </div>
-    </Link>
-  );
+    let params = new URLSearchParams();
 
-  const MovieGrid: React.FC<{ movies: Movie[] }> = ({ movies }) => (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-      {movies.map((movie) => (
-        <MovieCard key={movie.id} movie={movie} />
-      ))}
-    </div>
-  );
+    if (searchQuery.length > 2) {
+      params.append('query', searchQuery);
+      return `https://api.themoviedb.org/3/search/movie?${params.toString()}`;
+    }
 
-  const LoadingSkeleton = () => (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-      {Array.from({ length: 18 }).map((_, i) => (
-        <div key={i} className="space-y-3">
-          <div className="aspect-[2/3] bg-gray-800 rounded-lg animate-pulse"></div>
-          <div className="h-4 bg-gray-800 rounded animate-pulse"></div>
-          <div className="h-3 bg-gray-800 rounded animate-pulse w-2/3"></div>
-        </div>
-      ))}
-    </div>
-  );
+    if (genre !== 'all') params.append('with_genres', genre);
+    if (year !== 'all') params.append('primary_release_year', year);
+    if (endpoint === 'discover/movie') {
+      params.append('sort_by', 'popularity.desc');
+    }
+    
+    return `https://api.themoviedb.org/3/${endpoint}?${params.toString()}`;
+  }, [apiKey, endpoint, searchQuery, genre, year]);
+
+  const { data, error, isLoading } = useSWR(apiUrl, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  });
+
+  const displayMovies = data?.results || [];
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Discover Films</h1>
-          <p className="text-gray-400">
-            Explore thousands of movies and find your next favorite
-          </p>
-        </div>
+    <div className="min-h-screen p-4 sm:p-6 md:p-8">
+      <div className="max-w-screen-2xl mx-auto">
+        <header className="mb-8 animate-fade-in-down">
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 text-shadow">Discover Films</h1>
+          <p className="text-gray-300">Browse movies by popularity, rating, and more.</p>
+        </header>
 
-        {/* Search Bar */}
-        <div className="mb-8">
-          <div className="relative max-w-2xl">
+        <div className="mb-8 sticky top-16 z-30 bg-[#141414]/80 backdrop-blur-md py-4 rounded-b-xl -mx-4 px-4">
+          <div className="relative max-w-xl">
             <VscSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search for movies..."
-              className="w-full bg-gray-900 text-white pl-12 pr-4 py-3 rounded-lg border border-gray-700 focus:border-[#e5383b] focus:outline-none"
+              placeholder="Search by title, e.g. 'Inception'..."
+              className="w-full bg-gray-900/50 text-white pl-12 pr-4 py-3 rounded-full border-2 border-gray-700 focus:border-[#e5383b] focus:outline-none transition-all duration-200 focus-glow"
             />
           </div>
         </div>
 
-        {/* Filters and Categories */}
         {!searchQuery && (
-          <div className="mb-8 space-y-4">
-            {/* Categories */}
+          <div className="mb-8 space-y-4 animate-fade-in-up">
             <div className="flex flex-wrap gap-2">
               {categories.map((category) => (
                 <button
                   key={category.key}
-                  onClick={() => setSelectedCategory(category.key)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    selectedCategory === category.key
-                      ? 'bg-[#e5383b] text-white'
-                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
+                  onClick={() => setEndpoint(category.key)}
+                  className={`px-4 py-2 rounded-full font-medium transition-colors duration-200 text-sm sm:text-base ${
+                    endpoint === category.key ? 'bg-[#e5383b] text-white shadow-lg' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                   }`}
                 >
                   {category.label}
                 </button>
               ))}
             </div>
-
-            {/* Filters */}
             <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex items-center space-x-2">
-                <VscFilter className="text-gray-400" />
-                <span className="text-gray-400 text-sm">Filters:</span>
+              <div className="flex items-center space-x-2 text-gray-400">
+                <VscFilter />
+                <span>Filters:</span>
               </div>
-
-              {/* Genre Filter */}
               <select
-                value={selectedGenre}
-                onChange={(e) => setSelectedGenre(e.target.value)}
-                className="bg-gray-800 text-white border border-gray-700 rounded-lg px-3 py-2 focus:border-[#e5383b] focus:outline-none"
+                value={genre}
+                onChange={(e) => setGenre(e.target.value)}
+                className="bg-gray-800 text-white border-2 border-gray-700 rounded-full px-3 py-2 focus:border-[#e5383b] focus:outline-none transition-all duration-200 text-sm"
               >
-                {genres.map((genre) => (
-                  <option key={genre.id} value={genre.id}>
-                    {genre.name}
-                  </option>
-                ))}
+                {genres.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
               </select>
-
-              {/* Year Filter */}
               <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="bg-gray-800 text-white border border-gray-700 rounded-lg px-3 py-2 focus:border-[#e5383b] focus:outline-none"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                className="bg-gray-800 text-white border-2 border-gray-700 rounded-full px-3 py-2 focus:border-[#e5383b] focus:outline-none transition-all duration-200 text-sm"
               >
-                <option value="all">All Years</option>
-                {years.slice(1).map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
+                {years.map((y) => (<option key={y} value={y}>{y === 'all' ? 'All Years' : y}</option>))}
               </select>
             </div>
           </div>
         )}
 
-        {/* Results Header */}
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-white">
-            {searchQuery.length > 2 
-              ? `Search results for "${searchQuery}"` 
-              : categories.find(c => c.key === selectedCategory)?.label || 'Movies'
-            }
+            {searchQuery.length > 2 ? `Search results for "${searchQuery}"` : categories.find(c => c.key === endpoint)?.label || 'Movies'}
           </h2>
-          <p className="text-gray-400 text-sm mt-1">
-            {displayMovies.length} movies found
-          </p>
         </div>
 
-        {/* Movies Grid */}
-        {isLoading ? (
-          <LoadingSkeleton />
-        ) : error ? (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4">😞</div>
-            <h2 className="text-2xl font-semibold text-white mb-2">Something went wrong</h2>
-            <p className="text-gray-400">Failed to load movies. Please try again later.</p>
-          </div>
-        ) : displayMovies.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4">🔍</div>
-            <h2 className="text-2xl font-semibold text-white mb-2">No movies found</h2>
-            <p className="text-gray-400">
-              {searchQuery.length > 2 
-                ? 'Try adjusting your search terms'
-                : 'No movies match your current filters'
-              }
-            </p>
-          </div>
-        ) : (
-          <MovieGrid movies={displayMovies} />
-        )}
-
-        {/* Load More */}
+        {isLoading && <LoadingSkeleton />}
+        {error && <ErrorDisplay error={error} />}
+        {!isLoading && !error && displayMovies.length === 0 && <NoResultsDisplay query={searchQuery} />}
+        {!isLoading && !error && displayMovies.length > 0 && <MovieGrid movies={displayMovies} />}
+        
         {displayMovies.length > 0 && (
           <div className="text-center mt-12">
-            <button className="px-8 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors">
-              Load More Movies
+            <button className="px-8 py-3 bg-gray-800 hover:bg-[#e5383b] text-white rounded-lg transition-all duration-200 transform hover:scale-105">
+              Load More
             </button>
           </div>
         )}
-
-        {/* Quick Stats */}
-        <div className="mt-16 bg-gray-900 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Platform Stats</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-[#e5383b]">50K+</div>
-              <div className="text-sm text-gray-400">Movies</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-[#e5383b]">25K+</div>
-              <div className="text-sm text-gray-400">Reviews</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-[#e5383b]">10K+</div>
-              <div className="text-sm text-gray-400">Users</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-[#e5383b]">150K+</div>
-              <div className="text-sm text-gray-400">Ratings</div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

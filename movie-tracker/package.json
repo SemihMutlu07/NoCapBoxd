@@ -9,7 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@types/papaparse": "^5.3.16",
     "next": "15.3.3",
     "papaparse": "^5.5.3",
     "react": "^18.2.0",
@@ -19,9 +18,9 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "autoprefixer": "^10.4.16",
+    "@tailwindcss/postcss": "^4.1.8",
     "@types/node": "^20",
+    "@types/papaparse": "^5.3.16",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "eslint": "^9",
